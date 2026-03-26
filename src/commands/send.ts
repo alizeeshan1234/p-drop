@@ -14,8 +14,7 @@ import { createALT, extendALT, waitForALTActivation, buildAndSendVersionedTx } f
 import { printBanner } from "../display/banner.js";
 import { createSpinner, logSuccess, logSection } from "../display/progress.js";
 import { printCsvResults } from "../display/results.js";
-import { parseRecipientsCSV } from "../csv/parser.js";
-import { MAX_TRANSFERS_PER_TX_WITH_ALT } from "../constants.js";
+import { MAX_TRANSFERS_PER_TX_WITH_ALT, MAX_TRANSFERS_PER_TX_NO_ALT } from "../constants.js";
 import type { BenchmarkResult } from "../types.js";
 import {
   loadKeypair,
@@ -35,9 +34,10 @@ import {
   type Receipt,
 } from "../core/common.js";
 
-export async function runCsv(options: {
+export async function runSend(options: {
   mint: string;
-  csv: string;
+  to: string;
+  amount: string;
   cluster: string;
   rpc?: string;
   keypair?: string;
@@ -66,26 +66,40 @@ export async function runCsv(options: {
   const mint = new PublicKey(options.mint);
   logSuccess(`Mint: ${mint.toBase58()}`);
 
-  // ── Parse CSV ─────────────────────────────────────────────────
-  let spinner = createSpinner("Parsing CSV...");
-  spinner.start();
-  const recipients = parseRecipientsCSV(options.csv);
-  spinner.stop();
-  logSuccess(`Parsed ${recipients.length} recipients from ${options.csv}`);
+  // ── Parse recipients ──────────────────────────────────────────
+  const walletStrings = options.to.split(",").map((w) => w.trim()).filter(Boolean);
+  if (walletStrings.length === 0) {
+    throw new Error("No recipient wallets provided");
+  }
+
+  const amount = BigInt(options.amount);
+  if (amount <= 0n) {
+    throw new Error("Amount must be positive");
+  }
+
+  const wallets = walletStrings.map((w) => {
+    try {
+      return new PublicKey(w);
+    } catch {
+      throw new Error(`Invalid wallet address: ${w}`);
+    }
+  });
+
+  logSuccess(`${wallets.length} recipients, ${amount.toString()} tokens each`);
 
   // ── Check token balance ─────────────────────────────────────
-  const totalAmount = recipients.reduce((sum, r) => sum + r.amount, 0n);
+  const totalAmount = amount * BigInt(wallets.length);
   const { sourceATA } = await checkTokenBalance(connection, payer.publicKey, mint, totalAmount);
   logSuccess(`Source ATA: ${sourceATA.toBase58().slice(0, 8)}...${sourceATA.toBase58().slice(-4)}`);
 
   // ── Estimate costs & max-cost check ─────────────────────────
-  const estimate = estimateAirdropCost(recipients.length);
+  const estimate = estimateAirdropCost(wallets.length);
   checkMaxCost(estimate.estimatedSolCost, options.maxCost);
 
   // ── Dry run ─────────────────────────────────────────────────
   if (options.dryRun) {
     printDryRunSummary(
-      recipients.map((r) => ({ wallet: r.wallet.toBase58(), amount: r.amount.toString() })),
+      wallets.map((w) => ({ wallet: w.toBase58(), amount: amount.toString() })),
       {
         type: "token",
         totalAmount: totalAmount.toString(),
@@ -100,7 +114,7 @@ export async function runCsv(options: {
   // ── Confirmation ────────────────────────────────────────────
   if (!options.yes) {
     const proceed = await confirmProceed(
-      `Airdrop to ${recipients.length} wallets on ${cluster}?`,
+      `Send ${amount.toString()} tokens to ${wallets.length} wallets on ${cluster}?`,
     );
     if (!proceed) {
       console.log("\n  Aborted.\n");
@@ -114,19 +128,19 @@ export async function runCsv(options: {
 
   if (options.resume) {
     const resumeState = loadResumeState();
-    if (resumeState && resumeState.command === "csv" && resumeState.mint === options.mint) {
+    if (resumeState && resumeState.command === "send" && resumeState.mint === options.mint) {
       startIdx = resumeState.completedIndices.length;
       existingSignatures.push(...resumeState.signatures);
-      logSuccess(`Resuming from transfer ${startIdx}/${recipients.length}`);
+      logSuccess(`Resuming from transfer ${startIdx}/${wallets.length}`);
     }
   }
 
   // ── Derive ATAs ───────────────────────────────────────────────
-  spinner = createSpinner("Deriving token accounts...");
+  let spinner = createSpinner("Deriving token accounts...");
   spinner.start();
   const atas: PublicKey[] = [];
-  for (const r of recipients) {
-    atas.push(await getAssociatedTokenAddress(mint, r.wallet));
+  for (const wallet of wallets) {
+    atas.push(await getAssociatedTokenAddress(mint, wallet));
   }
   spinner.stop();
   logSuccess(`Derived ${atas.length} Associated Token Accounts`);
@@ -168,7 +182,7 @@ export async function runCsv(options: {
           createAssociatedTokenAccountInstruction(
             payer.publicKey,
             atas[idx],
-            recipients[idx].wallet,
+            wallets[idx],
             mint,
           ),
         );
@@ -185,78 +199,93 @@ export async function runCsv(options: {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // P-TOKEN AIRDROP
+  // SEND TOKENS
   // ═══════════════════════════════════════════════════════════════
-  logSection("P-TOKEN AIRDROP");
+  logSection("BATCH SEND");
 
-  // Create ALT
-  spinner = createSpinner("Creating Address Lookup Table...");
-  spinner.start();
-  const altAddress = await createALT(connection, payer);
-  spinner.stop();
-  logSuccess("Created Address Lookup Table");
-
-  // Extend ALT
-  spinner = createSpinner("Loading addresses into ALT...");
-  spinner.start();
-  const altAddresses = [sourceATA, ...atas];
-  await extendALT(connection, payer, altAddress, altAddresses, (done, total) => {
-    spinner.text = `Loading addresses into ALT... ${done}/${total}`;
-  });
-  spinner.stop();
-  logSuccess(`Added ${altAddresses.length} addresses to ALT`);
-
-  // Wait for ALT activation
-  spinner = createSpinner("Waiting for ALT activation...");
-  spinner.start();
-  const altAccount = await waitForALTActivation(connection, altAddress, altAddresses.length);
-  spinner.stop();
-  logSuccess(`ALT activated (${altAccount.state.addresses.length} addresses)`);
-
-  // Execute transfers
+  const useALT = wallets.length > MAX_TRANSFERS_PER_TX_NO_ALT;
   const signatures: string[] = [...existingSignatures];
   let totalCU = 0;
   const startTime = Date.now();
   const completedIndices: number[] = Array.from({ length: startIdx }, (_, i) => i);
 
-  for (let i = startIdx; i < recipients.length; i += MAX_TRANSFERS_PER_TX_WITH_ALT) {
-    const batchEnd = Math.min(i + MAX_TRANSFERS_PER_TX_WITH_ALT, recipients.length);
-    const batchRecipients = recipients.slice(i, batchEnd);
-    const batchATAs = atas.slice(i, batchEnd);
+  if (useALT) {
+    spinner = createSpinner("Creating Address Lookup Table...");
+    spinner.start();
+    const altAddress = await createALT(connection, payer);
+    spinner.stop();
+    logSuccess("Created Address Lookup Table");
 
-    const instructions = batchRecipients.map((r, j) =>
-      createTransferInstruction(
-        sourceATA,
-        batchATAs[j],
-        payer.publicKey,
-        r.amount,
-      ),
-    );
-
-    const sig = await buildAndSendVersionedTx(
-      connection,
-      payer,
-      instructions,
-      altAccount,
-    );
-    signatures.push(sig);
-
-    for (let idx = i; idx < batchEnd; idx++) completedIndices.push(idx);
-    saveResumeState({
-      command: "csv",
-      cluster,
-      mint: options.mint,
-      recipients: recipients.map((r) => ({ wallet: r.wallet.toBase58(), amount: r.amount.toString() })),
-      completedIndices,
-      signatures,
-      timestamp: new Date().toISOString(),
+    spinner = createSpinner("Loading addresses into ALT...");
+    spinner.start();
+    const altAddresses = [sourceATA, ...atas];
+    await extendALT(connection, payer, altAddress, altAddresses, (done, total) => {
+      spinner.text = `Loading addresses into ALT... ${done}/${total}`;
     });
+    spinner.stop();
+    logSuccess(`Added ${altAddresses.length} addresses to ALT`);
 
-    process.stdout.write(`\r  ${progressBar(batchEnd, recipients.length)}`);
-    await new Promise((r) => setTimeout(r, 200));
+    spinner = createSpinner("Waiting for ALT activation...");
+    spinner.start();
+    const altAccount = await waitForALTActivation(connection, altAddress, altAddresses.length);
+    spinner.stop();
+    logSuccess(`ALT activated (${altAccount.state.addresses.length} addresses)`);
+
+    for (let i = startIdx; i < wallets.length; i += MAX_TRANSFERS_PER_TX_WITH_ALT) {
+      const batchEnd = Math.min(i + MAX_TRANSFERS_PER_TX_WITH_ALT, wallets.length);
+      const batchATAs = atas.slice(i, batchEnd);
+
+      const instructions = batchATAs.map((dest) =>
+        createTransferInstruction(sourceATA, dest, payer.publicKey, amount),
+      );
+
+      const sig = await buildAndSendVersionedTx(connection, payer, instructions, altAccount);
+      signatures.push(sig);
+
+      for (let idx = i; idx < batchEnd; idx++) completedIndices.push(idx);
+      saveResumeState({
+        command: "send",
+        cluster,
+        mint: options.mint,
+        recipients: wallets.map((w) => ({ wallet: w.toBase58(), amount: amount.toString() })),
+        completedIndices,
+        signatures,
+        timestamp: new Date().toISOString(),
+      });
+
+      process.stdout.write(`\r  ${progressBar(batchEnd, wallets.length)}`);
+      await new Promise((r) => setTimeout(r, 200));
+    }
+  } else {
+    for (let i = startIdx; i < wallets.length; i += MAX_TRANSFERS_PER_TX_NO_ALT) {
+      const batchEnd = Math.min(i + MAX_TRANSFERS_PER_TX_NO_ALT, wallets.length);
+      const batchATAs = atas.slice(i, batchEnd);
+
+      const tx = new Transaction();
+      for (const dest of batchATAs) {
+        tx.add(createTransferInstruction(sourceATA, dest, payer.publicKey, amount));
+      }
+
+      const sig = await sendAndConfirm(connection, tx, [payer]);
+      signatures.push(sig);
+
+      for (let idx = i; idx < batchEnd; idx++) completedIndices.push(idx);
+      saveResumeState({
+        command: "send",
+        cluster,
+        mint: options.mint,
+        recipients: wallets.map((w) => ({ wallet: w.toBase58(), amount: amount.toString() })),
+        completedIndices,
+        signatures,
+        timestamp: new Date().toISOString(),
+      });
+
+      process.stdout.write(`\r  ${progressBar(batchEnd, wallets.length)}`);
+      await new Promise((r) => setTimeout(r, 200));
+    }
   }
 
-  console.log("");
+  console.log(""); // newline after progress bar
   const wallTimeMs = Date.now() - startTime;
 
   // Fetch CU
@@ -274,7 +303,7 @@ export async function runCsv(options: {
       }
     } catch {}
   }
-  if (totalCU === 0) totalCU = recipients.length * 78;
+  if (totalCU === 0) totalCU = wallets.length * 78;
 
   logSuccess(`Total CU: ${totalCU.toLocaleString()} | Time: ${(wallTimeMs / 1000).toFixed(1)}s | ${signatures.length} txs`);
 
@@ -292,17 +321,17 @@ export async function runCsv(options: {
     txCount: signatures.length,
     wallTimeMs,
     signatures,
-    transferCount: recipients.length,
+    transferCount: wallets.length,
   };
 
   printCsvResults(result, totalAmount, cluster);
 
   // ── Receipt output ────────────────────────────────────────────
-  const receiptEntries: ReceiptEntry[] = recipients.map((r, i) => {
-    const txIdx = Math.floor(i / MAX_TRANSFERS_PER_TX_WITH_ALT);
+  const receiptEntries: ReceiptEntry[] = wallets.map((w, i) => {
+    const txIdx = Math.floor(i / (useALT ? MAX_TRANSFERS_PER_TX_WITH_ALT : MAX_TRANSFERS_PER_TX_NO_ALT));
     return {
-      wallet: r.wallet.toBase58(),
-      amount: r.amount.toString(),
+      wallet: w.toBase58(),
+      amount: amount.toString(),
       mint: mint.toBase58(),
       signature: signatures[txIdx] || "unknown",
       status: "success" as const,
@@ -313,11 +342,11 @@ export async function runCsv(options: {
     timestamp: new Date().toISOString(),
     cluster,
     payer: payer.publicKey.toBase58(),
-    command: "csv",
+    command: "send",
     transfers: receiptEntries,
     summary: {
-      totalTransfers: recipients.length,
-      successCount: recipients.length,
+      totalTransfers: wallets.length,
+      successCount: wallets.length,
       failedCount: 0,
       totalCU,
       txCount: signatures.length,
@@ -335,6 +364,7 @@ export async function runCsv(options: {
     logSuccess(`CSV receipt saved to ${path}`);
   }
 
+  // ── Webhook ───────────────────────────────────────────────────
   if (options.webhook) {
     await sendWebhook(options.webhook, receipt);
   }

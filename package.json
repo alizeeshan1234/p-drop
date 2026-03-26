@@ -1,7 +1,7 @@
 {
   "name": "pdrop",
-  "version": "1.0.0",
-  "description": "Airdrop tool powered by P-Token (SIMD-0266) — 98% cheaper than SPL Token",
+  "version": "1.1.0",
+  "description": "Airdrop & batch send tool powered by P-Token (SIMD-0266) — 98% cheaper than SPL Token",
   "type": "module",
   "bin": {
     "pdrop": "./bin/cli.ts"
@@ -9,9 +9,39 @@
   "scripts": {
     "dev": "tsx bin/cli.ts",
     "demo": "tsx bin/cli.ts demo",
-    "csv": "tsx bin/cli.ts csv"
+    "csv": "tsx bin/cli.ts csv",
+    "send": "tsx bin/cli.ts send",
+    "send-sol": "tsx bin/cli.ts send-sol",
+    "multi-send": "tsx bin/cli.ts multi-send",
+    "estimate": "tsx bin/cli.ts estimate"
   },
+  "keywords": [
+    "solana",
+    "airdrop",
+    "p-token",
+    "ptoken",
+    "simd-0266",
+    "batch-send",
+    "spl-token",
+    "crypto",
+    "web3"
+  ],
+  "author": "alizeeshan1234",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alizeeshan1234/pdrop.git"
+  },
+  "homepage": "https://github.com/alizeeshan1234/pdrop",
   "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "tsconfig.json",
+    "README.md"
+  ],
   "dependencies": {
     "@solana/web3.js": "^1.95.0",
     "@solana/spl-token": "^0.4.6",

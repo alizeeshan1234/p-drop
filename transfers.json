@@ -1,0 +1,17 @@
+[
+  {
+    "mint": "TOKEN_MINT_A_ADDRESS",
+    "wallet": "RECIPIENT_WALLET_1",
+    "amount": "1000000"
+  },
+  {
+    "mint": "TOKEN_MINT_A_ADDRESS",
+    "wallet": "RECIPIENT_WALLET_2",
+    "amount": "2000000"
+  },
+  {
+    "mint": "TOKEN_MINT_B_ADDRESS",
+    "wallet": "RECIPIENT_WALLET_1",
+    "amount": "5000000"
+  }
+]

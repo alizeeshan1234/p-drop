@@ -111,3 +111,77 @@ export function printCsvResults(
     }
   }
 }
+
+export function printSolResults(opts: {
+  transferCount: number;
+  totalSol: number;
+  totalCU: number;
+  txCount: number;
+  wallTimeMs: number;
+  signatures: string[];
+  cluster: string;
+}) {
+  const cuPerTransfer = opts.transferCount > 0 ? Math.round(opts.totalCU / opts.transferCount) : 0;
+
+  console.log(chalk.cyan.bold(`
+╔══════════════════════════════════════════════════════════════════╗
+║              SOL BATCH SEND COMPLETE                             ║
+║              ${String(opts.transferCount).padEnd(4)} recipients on ${opts.cluster.padEnd(22)}         ║
+╠══════════════════════════════════════════════════════════════════╣
+║                                                                  ║
+║   Transfers:        ${chalk.green(String(opts.transferCount).padEnd(40))}     ║
+║   Total SOL:        ${chalk.green(opts.totalSol.toFixed(4).padEnd(40))}     ║
+║   Transactions:     ${chalk.green(String(opts.txCount).padEnd(40))}     ║
+║   Wall Time:        ${chalk.green(formatTime(opts.wallTimeMs).padEnd(40))}     ║
+║   Total CU:         ${chalk.green(formatNumber(opts.totalCU).padEnd(40))}     ║
+║   CU/transfer:      ${chalk.green(formatNumber(cuPerTransfer).padEnd(40))}     ║
+║                                                                  ║
+╚══════════════════════════════════════════════════════════════════╝`));
+
+  if (opts.signatures.length > 0) {
+    console.log(chalk.dim(`\n  Verified on ${opts.cluster}:`));
+    for (const sig of opts.signatures) {
+      console.log(chalk.cyan(`  https://explorer.solana.com/tx/${sig}?cluster=${opts.cluster}`));
+    }
+  }
+}
+
+export function printMultiTokenResults(opts: {
+  totalTransfers: number;
+  mintCount: number;
+  totalCU: number;
+  txCount: number;
+  wallTimeMs: number;
+  signatures: string[];
+  cluster: string;
+}) {
+  const cuPerTransfer = opts.totalTransfers > 0 ? Math.round(opts.totalCU / opts.totalTransfers) : 0;
+  const splTotalCU = opts.totalTransfers * 4_645;
+
+  console.log(chalk.cyan.bold(`
+╔══════════════════════════════════════════════════════════════════╗
+║              MULTI-TOKEN BATCH SEND COMPLETE                     ║
+║              ${String(opts.totalTransfers).padEnd(4)} transfers across ${String(opts.mintCount).padEnd(2)} mints on ${opts.cluster.padEnd(10)}    ║
+╠══════════════════════════════════════════════════════════════════╣
+║                                                                  ║
+║   Total transfers:  ${chalk.green(String(opts.totalTransfers).padEnd(40))}     ║
+║   Token mints:      ${chalk.green(String(opts.mintCount).padEnd(40))}     ║
+║   Transactions:     ${chalk.green(String(opts.txCount).padEnd(40))}     ║
+║   Wall Time:        ${chalk.green(formatTime(opts.wallTimeMs).padEnd(40))}     ║
+║   Total CU:         ${chalk.green(formatNumber(opts.totalCU).padEnd(40))}     ║
+║   CU/transfer:      ${chalk.green(formatNumber(cuPerTransfer).padEnd(40))}     ║
+║                                                                  ║
+║   Compute saved vs SPL Token:                                    ║
+║   SPL would use:    ${formatNumber(splTotalCU).padEnd(40)}     ║
+║   P-Token used:     ${chalk.green(formatNumber(opts.totalCU).padEnd(40))}     ║
+║   Savings:          ${chalk.yellow(savings(splTotalCU, opts.totalCU).padEnd(40))}     ║
+║                                                                  ║
+╚══════════════════════════════════════════════════════════════════╝`));
+
+  if (opts.signatures.length > 0) {
+    console.log(chalk.dim(`\n  Verified on ${opts.cluster}:`));
+    for (const sig of opts.signatures) {
+      console.log(chalk.cyan(`  https://explorer.solana.com/tx/${sig}?cluster=${opts.cluster}`));
+    }
+  }
+}
