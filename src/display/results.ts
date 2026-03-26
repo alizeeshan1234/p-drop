@@ -75,3 +75,39 @@ export function printResults(
     }
   }
 }
+
+export function printCsvResults(
+  result: BenchmarkResult,
+  totalAmount: bigint,
+  cluster: string,
+) {
+  const cuPerTransfer = result.transferCount > 0 ? Math.round(result.totalCU / result.transferCount) : 0;
+  const splTotalCU = result.transferCount * 4_645;
+
+  console.log(chalk.cyan.bold(`
+╔══════════════════════════════════════════════════════════════════╗
+║              P-TOKEN AIRDROP COMPLETE                            ║
+║              ${String(result.transferCount).padEnd(4)} recipients on ${cluster.padEnd(22)}         ║
+╠══════════════════════════════════════════════════════════════════╣
+║                                                                  ║
+║   Transfers:        ${chalk.green(String(result.transferCount).padEnd(40))}     ║
+║   Total tokens:     ${chalk.green(String(totalAmount).padEnd(40))}     ║
+║   Transactions:     ${chalk.green(String(result.txCount).padEnd(40))}     ║
+║   Wall Time:        ${chalk.green(formatTime(result.wallTimeMs).padEnd(40))}     ║
+║   Total CU:         ${chalk.green(formatNumber(result.totalCU).padEnd(40))}     ║
+║   CU/transfer:      ${chalk.green(formatNumber(cuPerTransfer).padEnd(40))}     ║
+║                                                                  ║
+║   Compute saved vs SPL Token:                                    ║
+║   SPL would use:    ${formatNumber(splTotalCU).padEnd(40)}     ║
+║   P-Token used:     ${chalk.green(formatNumber(result.totalCU).padEnd(40))}     ║
+║   Savings:          ${chalk.yellow(savings(splTotalCU, result.totalCU).padEnd(40))}     ║
+║                                                                  ║
+╚══════════════════════════════════════════════════════════════════╝`));
+
+  if (result.signatures.length > 0) {
+    console.log(chalk.dim(`\n  Verified on ${cluster}:`));
+    for (const sig of result.signatures) {
+      console.log(chalk.cyan(`  https://explorer.solana.com/tx/${sig}?cluster=${cluster}`));
+    }
+  }
+}
