@@ -2,6 +2,7 @@
 import { Command } from "commander";
 import { runDemo } from "../src/commands/demo.js";
 import { runCsv } from "../src/commands/csv.js";
+import { runAirdrop } from "../src/commands/airdrop.js";
 
 const program = new Command();
 
@@ -44,6 +45,25 @@ program
       await runCsv({
         mint: opts.mint,
         csv: opts.csv,
+        cluster: opts.cluster,
+        rpc: opts.rpc,
+        keypair: opts.keypair,
+      });
+    } catch (err: any) {
+      console.error("\nError:", err.message);
+      process.exit(1);
+    }
+  });
+
+program
+  .command("airdrop")
+  .description("Interactive airdrop — choose snapshot, CSV, or manual entry")
+  .option("-c, --cluster <cluster>", "Solana cluster", "devnet")
+  .option("--rpc <url>", "Custom RPC endpoint")
+  .option("--keypair <path>", "Path to keypair file")
+  .action(async (opts) => {
+    try {
+      await runAirdrop({
         cluster: opts.cluster,
         rpc: opts.rpc,
         keypair: opts.keypair,
