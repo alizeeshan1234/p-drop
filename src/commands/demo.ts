@@ -104,7 +104,7 @@ export async function runDemo(options: {
 
   spinner = createSpinner("Loading addresses into ALT...");
   spinner.start();
-  const altAddresses = [sourceAccount, ...destAccounts];
+  const altAddresses = [payer.publicKey, sourceAccount, ...destAccounts];
   await extendALT(connection, payer, altAddress, altAddresses, (done, total) => {
     spinner.text = `Loading addresses into ALT... ${done}/${total}`;
   });

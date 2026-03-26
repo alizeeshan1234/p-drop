@@ -70,6 +70,11 @@ export async function waitForALTActivation(
       result.value &&
       result.value.state.addresses.length >= expectedAddresses
     ) {
+      // Extra wait to ensure validators have caught up
+      await new Promise((r) => setTimeout(r, 1000));
+      // Re-fetch to get the most up-to-date state
+      const confirmed = await connection.getAddressLookupTable(altAddress);
+      if (confirmed.value) return confirmed.value;
       return result.value;
     }
     await new Promise((r) => setTimeout(r, 400));

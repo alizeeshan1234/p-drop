@@ -85,7 +85,7 @@ npm install
 Or install globally via npm:
 
 ```bash
-npm install -g pdrop
+npm install -g pdrop-cli
 ```
 
 After global install, use `pdrop` directly instead of `npx tsx bin/cli.ts`.
