@@ -10,7 +10,6 @@ import { printBanner } from "../display/banner.js";
 import { createSpinner, logSuccess, logSection } from "../display/progress.js";
 import { printResults } from "../display/results.js";
 import { DEMO_DECIMALS, DEMO_AMOUNT_PER_RECIPIENT } from "../constants.js";
-import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 
 export async function runDemo(options: {
   recipients: number;
@@ -105,10 +104,7 @@ export async function runDemo(options: {
 
   spinner = createSpinner("Loading addresses into ALT...");
   spinner.start();
-  const altAddresses = [
-    TOKEN_PROGRAM_ID,
-    sourceAccount, ...destAccounts,
-  ];
+  const altAddresses = [sourceAccount, ...destAccounts];
   await extendALT(connection, payer, altAddress, altAddresses, (done, total) => {
     spinner.text = `Loading addresses into ALT... ${done}/${total}`;
   });

@@ -60,21 +60,18 @@ export function printResults(
 ║                                                                  ║
 ╠══════════════════════════════════════════════════════════════════╣`));
 
-  // Explorer links
-  if (spl.signatures.length > 0) {
-    const splExplorer = `https://explorer.solana.com/tx/${spl.signatures[0]}?cluster=${cluster}`;
-    console.log(chalk.cyan(`║  SPL tx:    ${chalk.dim(splExplorer.slice(0, 54))}  ║`));
-  }
-  if (ptoken.signatures.length > 0) {
-    const ptokenExplorer = `https://explorer.solana.com/tx/${ptoken.signatures[0]}?cluster=${cluster}`;
-    console.log(chalk.cyan(`║  P-Tok tx:  ${chalk.dim(ptokenExplorer.slice(0, 54))}  ║`));
-  }
-
-  console.log(chalk.cyan.bold(`╠══════════════════════════════════════════════════════════════════╣
-║                                                                  ║
+  console.log(chalk.cyan.bold(`║                                                                  ║
 ║  P-Token uses Pinocchio: zero-copy, no_std, no heap, no logging  ║
 ║  Approved via SIMD-0266 — built by @0x_febo & @anza_xyz          ║
 ║  github.com/alizeeshan1234/pdrop                                 ║
 ║                                                                  ║
 ╚══════════════════════════════════════════════════════════════════╝`));
+
+  // Explorer links (printed outside box so they aren't truncated)
+  if (ptoken.signatures.length > 0) {
+    console.log(chalk.dim(`\n  Verified on ${cluster}:`));
+    for (const sig of ptoken.signatures) {
+      console.log(chalk.cyan(`  https://explorer.solana.com/tx/${sig}?cluster=${cluster}`));
+    }
+  }
 }
