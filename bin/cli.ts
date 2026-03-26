@@ -5,7 +5,7 @@ import { runDemo } from "../src/commands/demo.js";
 const program = new Command();
 
 program
-  .name("p-token-airdrop")
+  .name("pdrop")
   .description("Airdrop tool powered by P-Token (SIMD-0266) — 98% cheaper than SPL Token")
   .version("1.0.0");
 

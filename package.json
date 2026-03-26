@@ -1,10 +1,10 @@
 {
-  "name": "p-token-airdrop",
+  "name": "pdrop",
   "version": "1.0.0",
   "description": "Airdrop tool powered by P-Token (SIMD-0266) — 98% cheaper than SPL Token",
   "type": "module",
   "bin": {
-    "p-token-airdrop": "./bin/cli.ts"
+    "pdrop": "./bin/cli.ts"
   },
   "scripts": {
     "dev": "tsx bin/cli.ts",

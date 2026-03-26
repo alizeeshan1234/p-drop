@@ -74,7 +74,7 @@ export function printResults(
 ║                                                                  ║
 ║  P-Token uses Pinocchio: zero-copy, no_std, no heap, no logging  ║
 ║  Approved via SIMD-0266 — built by @0x_febo & @anza_xyz          ║
-║  github.com/alizeeshan1234/p-token-airdrop                       ║
+║  github.com/alizeeshan1234/pdrop                                 ║
 ║                                                                  ║
 ╚══════════════════════════════════════════════════════════════════╝`));
 }
